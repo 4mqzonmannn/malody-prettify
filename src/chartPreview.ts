@@ -76,25 +76,13 @@ export class ChartPreviewPanel {
                         json.effect.push(newEff);
                     } else if (message.command === 'addRangeEffect') {
                         const tToBeats = (b: number[]) => b[0]*4 + ((b[1]||0)/(b[2]||1))*4;
-                        const beatsToT = (beats: number, step: number) => {
-                            const measure = Math.floor(beats / 4);
-                            const rem = beats - measure * 4;
-                            let idx = Math.round((rem / 4) * step);
-                            if (idx === step) { idx = 0; return [measure + 1, 0, 1]; }
-                            const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
-                            const g = gcd(idx, step);
-                            const num = idx / g;
-                            const den = step / g;
-                            return [measure, num, den === 0 ? 1 : den];
-                        };
-
                         const startBeat = message.startBeat;
                         const endBeat = message.endBeat;
                         const startVal = message.startVal;
                         const endVal = message.endVal;
                         const curve = message.curve;
                         const strength = message.strength || 2.0;
-                        const gridDiv = message.gridDiv;
+                        const count = message.count || 1;
                         
                         const startF = tToBeats(startBeat);
                         const endF = tToBeats(endBeat);
@@ -102,14 +90,21 @@ export class ChartPreviewPanel {
                             vscode.window.showErrorMessage('始点は終点より手前である必要があります。');
                             return;
                         }
-                        
-                        const stepF = 4 / gridDiv;
-                        const steps = Math.floor((endF - startF) / stepF);
-                        if (steps <= 0) return;
 
+                        const beatsToT = (beats: number, den: number) => {
+                            const measure = Math.floor(beats / 4);
+                            const rem = beats - measure * 4;
+                            let num = Math.round((rem / 4) * den);
+                            if (num === den) { return [measure + 1, 0, 1]; }
+                            const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+                            const g = gcd(num, den);
+                            return [measure, num / g, (den / g) || 1];
+                        };
+
+                        const steps = count;
                         // Add effects
                         for (let i = 0; i <= steps; i++) {
-                            const t = i / steps; // 0.0 to 1.0
+                            const t = steps === 0 ? 1 : i / steps; // 0.0 to 1.0
                             let easedT = t;
                             if (curve === 'easeIn') easedT = Math.pow(t, strength);
                             else if (curve === 'easeOut') easedT = 1 - Math.pow(1 - t, strength);
@@ -118,8 +113,8 @@ export class ChartPreviewPanel {
                             }
 
                             const val = startVal + (endVal - startVal) * easedT;
-                            const currentBeatF = startF + i * stepF;
-                            const beatArr = beatsToT(currentBeatF, gridDiv);
+                            const currentBeatF = startF + i * ((endF - startF) / steps);
+                            const beatArr = beatsToT(currentBeatF, 1920);
                             
                             const newEff: any = { beat: beatArr };
                             const finalVal = Math.round(val * 1000) / 1000;
@@ -331,12 +326,18 @@ function buildHtml(
       Start: <span id="modRangeStartBeat" style="font-family: monospace;"></span><br>
       End: &nbsp;&nbsp;<span id="modRangeEndBeat" style="font-family: monospace;"></span>
     </div>
-    <div style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px;">
-      <label style="font-size: 13px;">Type:</label>
-      <select id="modRangeType" style="background: #2d2d2d; color: #e0e0e0; border: 1px solid #444; padding: 4px; border-radius: 4px;">
-        <option value="scroll">Scroll</option>
-        <option value="bpm">BPM</option>
-      </select>
+    <div style="margin-bottom: 8px; display: flex; gap: 8px;">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-size: 13px;">Type:</label>
+        <select id="modRangeType" style="background: #2d2d2d; color: #e0e0e0; border: 1px solid #444; padding: 4px; border-radius: 4px;">
+          <option value="scroll">Scroll</option>
+          <option value="bpm">BPM</option>
+        </select>
+      </div>
+      <div style="width: 70px; display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-size: 13px;">Count:</label>
+        <input type="number" id="modRangeCount" step="1" value="4" min="1" max="1000" style="background: #2d2d2d; color: #e0e0e0; border: 1px solid #444; padding: 4px; border-radius: 4px;">
+      </div>
     </div>
     <div style="margin-bottom: 8px; display: flex; gap: 8px;">
       <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
@@ -531,9 +532,15 @@ window.addEventListener('mouseup', (e) => {
         pendingBeatRange = { start: b1, end: b2 };
         document.getElementById('modRangeStartBeat').textContent = JSON.stringify(b1);
         document.getElementById('modRangeEndBeat').textContent = JSON.stringify(b2);
+        
+        // Countのデフォルト値をドラッグしたグリッドの数に設定
+        const f1 = beatArrToF(b1);
+        const f2 = beatArrToF(b2);
+        const defaultSteps = Math.max(1, Math.round((f2 - f1) / (4 / gridDiv)));
+        document.getElementById('modRangeCount').value = defaultSteps;
+
         document.getElementById('rangeEffectModal').style.display = 'block';
         drawCurvePreview();
-
       }
     }
   } else {
@@ -579,6 +586,8 @@ document.getElementById('btnRangeAdd').onclick = () => {
   const curve = document.getElementById('modRangeCurve').value;
   let strength = parseFloat(document.getElementById('modRangeStrength').value);
   if (isNaN(strength) || strength <= 0) strength = 2.0;
+  let count = parseInt(document.getElementById('modRangeCount').value);
+  if (isNaN(count) || count < 1) count = 1;
   
   if (!isNaN(startVal) && !isNaN(endVal) && pendingBeatRange) {
     vscode.postMessage({
@@ -590,7 +599,7 @@ document.getElementById('btnRangeAdd').onclick = () => {
       endVal: endVal,
       curve: curve,
       strength: strength,
-      gridDiv: gridDiv
+      count: count
     });
   }
   document.getElementById('rangeEffectModal').style.display = 'none';
