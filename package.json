@@ -2,13 +2,13 @@
     "name": "malody-prettify",
     "displayName": "Malody Prettify",
     "description": "Prettify Malody's chart format .mc",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "author": {
-        "name": "LuiCat",
-        "url": "https://github.com/LuiCat"
+        "name": "4mqzonmannn",
+        "url": "https://github.com/4mqzonmannn"
     },
-    "publisher": "LuiCat",
-    "repository": "github:LuiCat/malody-prettify",
+    "publisher": "4mqzonmannn",
+    "repository": "github:4mqzonmannn/malody-prettify",
     "license": "MIT",
     "engines": {
         "vscode": "^1.43.0"
@@ -72,13 +72,12 @@
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
-        "postinstall": "node ./node_modules/vscode/bin/install",
-        "package": "npm run compile && vsce package -o malody-prettify.vsix --baseContentUrl https://raw.githubusercontent.com/LuiCat/malody-prettify/master/README.md",
-        "publish": "npm run package && vsce publish --baseContentUrl https://raw.githubusercontent.com/LuiCat/malody-prettify/master/README.md"
+        "package": "npm run compile && npx @vscode/vsce package -o malody-prettify.vsix --baseContentUrl https://raw.githubusercontent.com/4mqzonmannn/malody-prettify/master/README.md",
+        "publish": "npm run package && npx @vscode/vsce publish --baseContentUrl https://raw.githubusercontent.com/4mqzonmannn/malody-prettify/master/README.md"
     },
     "devDependencies": {
         "@types/node": "^20.19.43",
-        "@types/vscode": "^1.125.0",
+        "@types/vscode": "^1.43.0",
         "tslint": "^6.1.1",
         "typescript": "^5.9.3"
     },

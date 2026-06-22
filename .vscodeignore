@@ -2,3 +2,7 @@
 .vscode-test/**
 .gitignore
 vsc-extension-quickstart.md
+
+sample/
+sample_with_errors.mc
+test_polygon.js
