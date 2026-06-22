@@ -75,7 +75,7 @@ export class ChartPreviewPanel {
                         else if (message.type === 'bpm') newEff.bpm = message.value;
                         json.effect.push(newEff);
                     } else if (message.command === 'addRangeEffect') {
-                        const tToBeats = (b: number[]) => b[0]*4 + ((b[1]||0)/(b[2]||1))*4;
+                        const tToBeats = (b: number[]) => b[0] + (b[2] === 0 ? 0 : b[1] / b[2]);
                         const startBeat = message.startBeat;
                         const endBeat = message.endBeat;
                         const startVal = message.startVal;
@@ -92,13 +92,14 @@ export class ChartPreviewPanel {
                         }
 
                         const beatsToT = (beats: number, den: number) => {
-                            const measure = Math.floor(beats / 4);
-                            const rem = beats - measure * 4;
-                            let num = Math.round((rem / 4) * den);
-                            if (num === den) { return [measure + 1, 0, 1]; }
+                            const measure = Math.floor(beats);
+                            const rem = Math.max(0, beats - measure);
+                            let num = Math.round(rem * den);
+                            if (num >= den) { return [measure + 1, 0, 1]; }
+                            if (num === 0) return [measure, 0, 1];
                             const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
                             const g = gcd(num, den);
-                            return [measure, num / g, (den / g) || 1];
+                            return [measure, num / g, den / g];
                         };
 
                         const steps = count;
@@ -451,8 +452,8 @@ window.addEventListener('wheel', (e) => {
     isPlaying = false;
     updateBtns();
   }
-  const scrollAmount = e.deltaY * 0.01;
-  currentMeasure += scrollAmount;
+  const scrollStep = 1 / gridDiv;
+  currentMeasure += (e.deltaY > 0 ? -scrollStep : scrollStep);
   if (currentMeasure < 0) currentMeasure = 0;
   
   syncMsFromMeasure();
@@ -474,14 +475,14 @@ function getYToSnappedBeatArr(screenY) {
   const targetChartY = viewCenterChartY + (J_LINE - screenY) / basePxPerBeat;
   const targetBeatF = getBeatFFromChartY(targetChartY);
   
-  const step = 4 / gridDiv;
+  const step = 1 / gridDiv;
   const snappedBeatF = Math.round(targetBeatF / step) * step;
   if (snappedBeatF < 0) return null;
   
-  const measure = Math.floor(snappedBeatF / 4);
-  const remainderBeat = snappedBeatF - (measure * 4);
-  let idx = Math.round((remainderBeat / 4) * gridDiv);
-  if (idx === gridDiv) idx = 0;
+  const measure = Math.floor(snappedBeatF);
+  const remainderBeat = snappedBeatF - measure;
+  let idx = Math.round(remainderBeat * gridDiv);
+  if (idx === gridDiv) { idx = 0; return [measure + 1, 0, 1]; }
   
   function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
   const g = gcd(idx, gridDiv);
@@ -491,7 +492,7 @@ function getYToSnappedBeatArr(screenY) {
 }
 
 function beatArrToF(arr) {
-  return arr[0] * 4 + (arr[1] / arr[2]) * 4;
+  return arr[0] + (arr[1] / arr[2]);
 }
 
 canvas.addEventListener('mousedown', (e) => {
@@ -536,7 +537,7 @@ window.addEventListener('mouseup', (e) => {
         // Countのデフォルト値をドラッグしたグリッドの数に設定
         const f1 = beatArrToF(b1);
         const f2 = beatArrToF(b2);
-        const defaultSteps = Math.max(1, Math.round((f2 - f1) / (4 / gridDiv)));
+        const defaultSteps = Math.max(1, Math.round((f2 - f1) / (1 / gridDiv)));
         document.getElementById('modRangeCount').value = defaultSteps;
 
         document.getElementById('rangeEffectModal').style.display = 'block';
@@ -769,7 +770,7 @@ function getJudgementLineY() {
 }
 
 function render() {
-  lblMeasure.textContent = Math.floor(currentMeasure / 4).toString();
+  lblMeasure.textContent = Math.floor(currentMeasure).toString();
   
   const zoom = zoomPercent / 100;
   const basePxPerBeat = (BASE_SPEED * zoom) * (60 / mainBpm);
@@ -797,7 +798,7 @@ function render() {
 
   ctx.font = '10px Arial';
   
-  const step = 4 / gridDiv;
+  const step = 1 / gridDiv;
 
   const startBeat = Math.max(0, currentMeasure - 5);
   const endBeat   = currentMeasure + 15;
