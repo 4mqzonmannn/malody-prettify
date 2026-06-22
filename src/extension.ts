@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { validateMcAst } from './validator';
+import { ChartPreviewPanel } from './chartPreview';
 
 const parseJSON = require('json-to-ast');
 const regLineSeperator = /\n|\r\n/;
@@ -7,6 +9,7 @@ let eol = '\n';
 let tab = '    ';
 
 let statusBarPrettify: vscode.StatusBarItem;
+let diagnosticCollection: vscode.DiagnosticCollection;
 
 enum CollapseType {
 	NoCollapse = 0,
@@ -137,14 +140,44 @@ function commandPrettify() {
 }
 
 function updateStatusBar(): void {
-	if (vscode.window.activeTextEditor?.document.languageId === "malodychart") {
+	const isMc = vscode.window.activeTextEditor?.document.languageId === "malodychart";
+	if (isMc) {
 		statusBarPrettify.show();
 	} else {
 		statusBarPrettify.hide();
 	}
 }
 
-export function activate({ subscriptions } : vscode.ExtensionContext) {
+/**
+ * ドキュメントを json-to-ast でパースし、validateMcAst でバリデーションを実行して
+ * DiagnosticCollection に結果をセットする。
+ */
+function validateMcDocument(document: vscode.TextDocument): void {
+	if (document.languageId !== 'malodychart') return;
+
+	const raw = document.getText();
+	try {
+		const ast = parseJSON(raw, { loc: true });
+		const diagnostics = validateMcAst(ast);
+		diagnosticCollection.set(document.uri, diagnostics);
+	} catch (e: any) {
+		const msg = e?.message ?? String(e);
+		const lineMatch = msg.match(/(\d+):(\d+)/);
+		let range = new vscode.Range(0, 0, 0, 0);
+		if (lineMatch) {
+			const line = Math.max(0, parseInt(lineMatch[1]) - 1);
+			const col  = Math.max(0, parseInt(lineMatch[2]) - 1);
+			range = new vscode.Range(line, col, line, col + 1);
+		}
+		diagnosticCollection.set(document.uri, [
+			new vscode.Diagnostic(range, `JSON パースエラー: ${msg}`, vscode.DiagnosticSeverity.Error)
+		]);
+	}
+}
+
+export function activate(context: vscode.ExtensionContext) {
+	const { subscriptions } = context;
+
 	subscriptions.push(vscode.commands.registerCommand('malody.prettify', commandPrettify));
 
 	statusBarPrettify = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -152,9 +185,54 @@ export function activate({ subscriptions } : vscode.ExtensionContext) {
 	statusBarPrettify.command = 'malody.prettify';
 	subscriptions.push(statusBarPrettify);
 
-	subscriptions.push(vscode.window.onDidChangeActiveTextEditor(updateStatusBar));
+	// ── DiagnosticCollection ──────────────────────────────────
+	diagnosticCollection = vscode.languages.createDiagnosticCollection('malodychart');
+	subscriptions.push(diagnosticCollection);
+
+	subscriptions.push(
+		vscode.commands.registerCommand('malody.showChartPreview', () => {
+			const editor = vscode.window.activeTextEditor;
+			if (!editor) {
+				vscode.window.showErrorMessage('アクティブなエディタが見つかりません。');
+				return;
+			}
+			if (editor.document.languageId !== 'malodychart') {
+				vscode.window.showErrorMessage('.mc ファイルを開いた状態で実行してください。');
+				return;
+			}
+			ChartPreviewPanel.show(context, editor.document);
+		})
+	);
+
+	subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
+		updateStatusBar();
+		if (editor) {
+			validateMcDocument(editor.document);
+		}
+	}));
+
+	subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
+		validateMcDocument(doc);
+		if (doc.languageId === 'malodychart') {
+			ChartPreviewPanel.refresh(doc);
+		}
+	}));
+
+	subscriptions.push(vscode.workspace.onDidOpenTextDocument(doc => {
+		validateMcDocument(doc);
+	}));
+
+	subscriptions.push(vscode.workspace.onDidCloseTextDocument(doc => {
+		diagnosticCollection.delete(doc.uri);
+	}));
+
+	if (vscode.window.activeTextEditor) {
+		validateMcDocument(vscode.window.activeTextEditor.document);
+	}
 
 	updateStatusBar();
 }
 
-export function deactivate() {}
+export function deactivate() {
+	diagnosticCollection?.dispose();
+}

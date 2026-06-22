@@ -2,7 +2,7 @@
     "name": "malody-prettify",
     "displayName": "Malody Prettify",
     "description": "Prettify Malody's chart format .mc",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "author": {
         "name": "LuiCat",
         "url": "https://github.com/LuiCat"
@@ -15,7 +15,8 @@
     },
     "categories": [
         "Programming Languages",
-        "Formatters"
+        "Formatters",
+        "Linters"
     ],
     "keywords": [
         "malody",
@@ -57,6 +58,13 @@
                 "category": "Malody",
                 "title": "Prettify MC",
                 "enablement": "editorLangId == malodychart"
+            },
+            {
+                "command": "malody.showChartPreview",
+                "category": "Malody",
+                "title": "Show Chart Preview",
+                "icon": "$(preview)",
+                "enablement": "editorLangId == malodychart"
             }
         ]
     },
@@ -69,10 +77,10 @@
         "publish": "npm run package && vsce publish --baseContentUrl https://raw.githubusercontent.com/LuiCat/malody-prettify/master/README.md"
     },
     "devDependencies": {
-        "@types/node": "^12.8.1",
-        "@types/vscode": "^1.43.0",
+        "@types/node": "^20.19.43",
+        "@types/vscode": "^1.125.0",
         "tslint": "^6.1.1",
-        "typescript": "^3.8.3"
+        "typescript": "^5.9.3"
     },
     "dependencies": {
         "json-to-ast": "^2.1.0"

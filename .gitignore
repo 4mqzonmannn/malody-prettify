@@ -2,3 +2,8 @@ out
 node_modules
 .vscode-test/
 *.vsix
+
+.DS_Store
+sample/
+sample_with_errors.mc
+test_polygon.js
