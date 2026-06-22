@@ -40,7 +40,7 @@ export class ChartPreviewPanel {
 
         if (ChartPreviewPanel._panel) {
             ChartPreviewPanel._panel.reveal();
-            ChartPreviewPanel._updateContent(notesOn, notesOff, effectMap, timingMap, mainBpm, ChartPreviewPanel._panel.webview);
+            ChartPreviewPanel.refresh(document);
             return;
         }
 
@@ -55,7 +55,7 @@ export class ChartPreviewPanel {
         );
 
         ChartPreviewPanel._panel = panel;
-        ChartPreviewPanel._updateContent(notesOn, notesOff, effectMap, timingMap, mainBpm, panel.webview);
+        panel.webview.html = buildHtml(notesOn, notesOff, effectMap, timingMap, mainBpm);
 
         panel.webview.onDidReceiveMessage(async message => {
             if (message.command === 'addEffect' || message.command === 'addRangeEffect') {
@@ -179,18 +179,14 @@ export class ChartPreviewPanel {
         const notesOn   = calcAllNoteRenderInfos(json.note ?? [], effectMap, timingMap, true);
         const notesOff  = calcAllNoteRenderInfos(json.note ?? [], effectMap, timingMap, false);
 
-        ChartPreviewPanel._updateContent(notesOn, notesOff, effectMap, timingMap, mainBpm, ChartPreviewPanel._panel.webview);
-    }
-
-    private static _updateContent(
-        notesOn: NoteRenderInfo[],
-        notesOff: NoteRenderInfo[],
-        effectMap: any[],
-        timingMap: any[],
-        mainBpm: number,
-        webview: vscode.Webview
-    ): void {
-        webview.html = buildHtml(notesOn, notesOff, effectMap, timingMap, mainBpm);
+        ChartPreviewPanel._panel.webview.postMessage({
+            command: 'updateData',
+            notesOn,
+            notesOff,
+            effectMap,
+            timingMap,
+            mainBpm
+        });
     }
 }
 
@@ -377,11 +373,24 @@ function buildHtml(
 
 <script>
 const vscode = acquireVsCodeApi();
-const notesOn   = ${JSON.stringify(notesOn)};
-const notesOff  = ${JSON.stringify(notesOff)};
-const effectMap = ${JSON.stringify(effectMap)};
-const timingMap = ${JSON.stringify(timingMap)};
-const mainBpm   = ${mainBpm};
+let notesOn   = ${JSON.stringify(notesOn)};
+let notesOff  = ${JSON.stringify(notesOff)};
+let effectMap = ${JSON.stringify(effectMap)};
+let timingMap = ${JSON.stringify(timingMap)};
+let mainBpm   = ${mainBpm};
+
+window.addEventListener('message', event => {
+  const message = event.data;
+  if (message.command === 'updateData') {
+    notesOn = message.notesOn;
+    notesOff = message.notesOff;
+    effectMap = message.effectMap;
+    timingMap = message.timingMap;
+    mainBpm = message.mainBpm;
+    syncMsFromMeasure();
+    render();
+  }
+});
 
 const BASE_SPEED = 800;
 
