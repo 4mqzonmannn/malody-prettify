@@ -12,8 +12,10 @@ const parseJSON = require('json-to-ast');
 
 export class ChartPreviewPanel {
     private static _panel: vscode.WebviewPanel | undefined;
+    private static _document: vscode.TextDocument | undefined;
 
     static show(context: vscode.ExtensionContext, document: vscode.TextDocument): void {
+        ChartPreviewPanel._document = document;
         const text = document.getText();
         let json: any;
         try {
@@ -57,13 +59,13 @@ export class ChartPreviewPanel {
 
         panel.webview.onDidReceiveMessage(async message => {
             if (message.command === 'addEffect' || message.command === 'addRangeEffect') {
-                const editor = vscode.window.activeTextEditor;
-                if (!editor || editor.document.languageId !== 'malodychart') {
-                    vscode.window.showErrorMessage('対象の譜面ファイルがアクティブではありません。');
+                const document = ChartPreviewPanel._document;
+                if (!document) {
+                    vscode.window.showErrorMessage('対象の譜面ファイルが見つかりません。');
                     return;
                 }
                 try {
-                    const text = editor.document.getText();
+                    const text = document.getText();
                     const json = JSON.parse(text);
                     if (!json.effect) json.effect = [];
                     
@@ -140,13 +142,18 @@ export class ChartPreviewPanel {
                     const { prettify } = require('./extension');
                     const formatted = await prettify(rawJson);
                     
-                    await editor.edit(builder => {
-                        const start = new vscode.Position(0, 0);
-                        const endLine = editor.document.lineCount - 1;
-                        const end = editor.document.lineAt(endLine).range.end;
-                        builder.replace(new vscode.Range(start, end), formatted);
-                    });
-                    vscode.window.showInformationMessage(`Effect (${message.type}: ${message.value}) を追加しました！`);
+                    const edit = new vscode.WorkspaceEdit();
+                    const start = new vscode.Position(0, 0);
+                    const endLine = document.lineCount - 1;
+                    const end = document.lineAt(endLine).range.end;
+                    edit.replace(document.uri, new vscode.Range(start, end), formatted);
+                    await vscode.workspace.applyEdit(edit);
+                    
+                    let msgVal = message.value;
+                    if (message.command === 'addRangeEffect') {
+                        msgVal = `${message.startVal} -> ${message.endVal}`;
+                    }
+                    vscode.window.showInformationMessage(`Effect (${message.type}: ${msgVal}) を追加しました！`);
                 } catch(e) {
                     vscode.window.showErrorMessage('Effectの追加に失敗しました: ' + e);
                 }
