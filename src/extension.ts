@@ -211,9 +211,23 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
-	subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
-		validateMcDocument(doc);
+	let updateTimeout: NodeJS.Timeout | undefined;
+	subscriptions.push(vscode.workspace.onDidChangeTextDocument(e => {
+		const doc = e.document;
 		if (doc.languageId === 'malodychart') {
+			if (updateTimeout) {
+				clearTimeout(updateTimeout);
+			}
+			updateTimeout = setTimeout(() => {
+				validateMcDocument(doc);
+				ChartPreviewPanel.refresh(doc);
+			}, 300);
+		}
+	}));
+
+	subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
+		if (doc.languageId === 'malodychart') {
+			validateMcDocument(doc);
 			ChartPreviewPanel.refresh(doc);
 		}
 	}));
